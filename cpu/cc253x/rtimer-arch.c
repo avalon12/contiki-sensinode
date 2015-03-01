@@ -55,45 +55,48 @@
 #include "debug.h"
 #include <stdio.h>
 
-#define RT_MODE_COMPARE() do { T1CCTL1 |= T1CCTL_MODE; } while(0)
-#define RT_MODE_CAPTURE() do { T1CCTL1 &= ~T1CCTL_MODE; } while(0)
 /*---------------------------------------------------------------------------*/
 void
 rtimer_arch_init(void)
 {
-  /*
-   * - Free running mode
-   * - Prescale by 32:
-   *   Tick Speed has been prescaled to 500 kHz already in clock_init()
-   *   We further prescale by 32 resulting in 15625 Hz for this timer.
-   */
-  T1CTL = (T1CTL_DIV1 | T1CTL_MODE0);
-
-  T1STAT = 0;
-
-  /* Timer 1, Channel 1. Compare Mode (0x04), Interrupt mask on (0x40) */
-  T1CCTL1 = T1CCTL_MODE | T1CCTL_IM;
-
-  /* Interrupt Mask Flags: No interrupt on overflow */
-  OVFIM = 0;
-
-  /* Acknowledge Timer 1 Interrupts */
-  T1IE = 1;
+  /* Enable Sleep Timer Interrupts */
+  STIF = 0;
+  STIE = 1;
 }
 /*---------------------------------------------------------------------------*/
 void
 rtimer_arch_schedule(rtimer_clock_t t)
 {
-  /* Switch to capture mode before writing T1CC1x and
-   * set the compare mode values so we can get an interrupt after t */
-  RT_MODE_CAPTURE();
-  T1CC1L = (unsigned char)t;
-  T1CC1H = (unsigned char)(t >> 8);
-  RT_MODE_COMPARE();
+  //T must be higher than 5
+  if (t <= 5) t = 6;
+
+  //Read from ST2:ST1:ST0 the current value and add t
+  
+  //await for sleep timer loader to be ready
+  while (STLOAD == 0);
+  /* set the compare mode values so we can get an interrupt after t *
+   * set ST0 last, as this will apply the compare value */
+  ST2 = (unsigned char)(t >> 16);
+  ST1 = (unsigned char)(t >> 8);
+  ST0 = (unsigned char)t;
 
   /* Turn on compare mode interrupt */
-  T1STAT = 0;
-  T1CCTL1 |= T1CCTL_IM;
+  STIF = 0;
+}
+/*---------------------------------------------------------------------------*/
+void rtimer_arch_sleep(rtimer_clock_t howlong)
+{
+  //await for sleep timer loader to be ready
+  while (STLOAD == 0);
+
+//read the value from sleep timer, and add howlong to it
+
+//SLEEPCMD.MODE to the desired PM mode 0 idle, 1 pm1, 2 pm2, 3 pm3
+
+//CLKCONCMD.OSC to 0 -- shouldn't be necesarry, value is retained
+
+//Set pcon.idle to 1 -- enter sleep mode
+
 }
 /*---------------------------------------------------------------------------*/
 /* avoid referencing bits, we don't call code which use them */
@@ -102,18 +105,16 @@ rtimer_arch_schedule(rtimer_clock_t t)
 #pragma exclude bits
 #endif
 void
-rtimer_isr(void) __interrupt(T1_VECTOR)
+rtimer_isr(void) __interrupt(ST_VECTOR)
 {
-  T1IE = 0; /* Ignore Timer 1 Interrupts */
+  STIE = 0; /* Ignore Sleep Timer Interrupts */
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
-
-  /* No more interrupts from Channel 1 till next rtimer_arch_schedule() call */
-  T1STAT &= ~T1STAT_CH1IF;
-  T1CCTL1 &= ~T1CCTL_IM;
 
   rtimer_run_next();
 
   ENERGEST_OFF(ENERGEST_TYPE_IRQ);
-  T1IE = 1; /* Acknowledge Timer 1 Interrupts */
+  STIF = 0; /* Clear Interrupt Flag */
+  STIE = 1; /* Acknowledge Sleep Timer Interrupts */
 }
 #pragma restore
+/*---------------------------------------------------------------------------*/

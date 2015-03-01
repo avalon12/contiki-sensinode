@@ -88,6 +88,8 @@
 #define T1STAT_CH1IF   0x02
 #define T1STAT_CH0IF   0x01
 
+/* TSLPCTL */
+
 /* WDCTL */
 #define WDCTL_CLR3  0x80
 #define WDCTL_CLR2  0x40

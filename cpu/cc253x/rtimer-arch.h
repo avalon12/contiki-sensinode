@@ -48,13 +48,14 @@
 #include "cc253x.h"
 
 /*
- * 32 MHz clock, prescaled down to 500 kHz for all 4 timers in clock_init().
- * Further prescaled factor 32 for T1, thus T1 is 15625 Hz
+ * 32 KHz sleep timer clock
  */
-#define RTIMER_ARCH_SECOND (15625U)
+#define RTIMER_ARCH_SECOND (32000U)
 
-#define rtimer_arch_now() (T1CNTL + (T1CNTH << 8))
+#define rtimer_arch_now() (ST0 + (ST1 << 8) + (ST2 << 16))
 
-void rtimer_isr(void) __interrupt(T1_VECTOR);
+void rtimer_isr(void) __interrupt(ST_VECTOR);
+
+void rtimer_arch_sleep(rtimer_clock_t howlong);
 
 #endif /* __RTIMER_ARCH_H__ */
